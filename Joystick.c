@@ -1,256 +1,15 @@
-/*
-Nintendo Switch Fightstick - Proof-of-Concept
-
-Based on the LUFA library's Low-Level Joystick Demo
-        (C) Dean Camera
-Based on the HORI's Pokken Tournament Pro Pad design
-        (C) HORI
-
-This project implements a modified version of HORI's Pokken Tournament Pro Pad
-USB descriptors to allow for the creation of custom controllers for the
-Nintendo Switch. This also works to a limited degree on the PS3.
-
-Since System Update v3.0.0, the Nintendo Switch recognizes the Pokken
-Tournament Pro Pad as a Pro Controller. Physical design limitations prevent
-the Pokken Controller from functioning at the same level as the Pro
-Controller. However, by default most of the descriptors are there, with the
-exception of Home and Capture. Descriptor modification allows us to unlock
-these buttons for our use.
-*/
-
-// make && sudo dfu-programmer atmega16u2 erase && sudo dfu-programmer
-// atmega16u2 flash Joystick.hex
-
-// make && ./teensy_loader_cli -mmcu=atmega32u4 -w Joystick.hex
-
 #include "Joystick.h"
 
-typedef enum {
-  UP,
-  DOWN,
-  LEFT,
-  RIGHT,
-  X,
-  Y,
-  A,
-  B,
-  L,
-  R,
-  THROW,
-  NOTHING,
-  PLUS,
-  MINUS,
-  TRIGGERS
-} Buttons_t;
-
-typedef struct {
-  Buttons_t button;
-  uint16_t duration;
-} command;
-
-static const command step[] = {
-    // Setup controller
-    {NOTHING, 250},
-    {TRIGGERS, 5},
-    {NOTHING, 100},
-    {TRIGGERS, 5},
-    {NOTHING, 100},
-    {A, 5},
-    {NOTHING, 50},
-
-    // Save
-    {A, 5},
-    {NOTHING, 100},
-    {A, 5},
-    {NOTHING, 120},
-    {A, 5},
-
-    // Walk to the girl
-
-    // Walk left
-    {LEFT, 135},
-    {NOTHING, 25},
-
-    // Walk down
-    {DOWN, 44},
-    {NOTHING, 25},
-
-    // Talk to her
-    {A, 5},
-    {NOTHING, 200},
-    {A, 5},
-    {NOTHING, 200},
-
-    // Up 4 times when arrive at menu
-    {UP, 5},
-    {NOTHING, 10},
-    {UP, 5},
-    {NOTHING, 10},
-    {UP, 5},
-    {NOTHING, 10},
-    {UP, 5},
-    {NOTHING, 10},
-
-    // After the extra quest is unlocked, it's 5
-    {UP, 5},
-    {NOTHING, 10},
-
-    // After the extra quest is unlocked, it's 6
-    {UP, 5},
-    {NOTHING, 10},
-
-    // In the Post-game, it's 8
-    {UP, 5},
-    {NOTHING, 10},
-    {UP, 5},
-    {NOTHING, 10},
-
-    // Press A to take item
-    {A, 5},
-    {NOTHING, 20},
-    {A, 5},
-    {NOTHING, 20},
-
-    // Enter Quest
-    {A, 5},
-    {NOTHING, 20},
-    {A, 5},
-    {NOTHING, 20},
-
-    // Wait a while
-    {NOTHING, 200},
-    {NOTHING, 200},
-
-    // Skip scene
-
-    // Press Plus
-    {PLUS, 5},
-    {NOTHING, 30},
-    // Press X
-    {X, 5},
-    {NOTHING, 30},
-    // Press up
-    {UP, 5},
-    {NOTHING, 30},
-    // Press A
-    {A, 5},
-    {NOTHING, 30},
-
-    // Wait a while
-    {NOTHING, 200},
-    {NOTHING, 130},
-
-    // Fast forward a little
-    {R, 50},
-    {NOTHING, 15},
-
-    // Set up thunder & fire spells
-
-    // First spell
-
-    // L
-    {L, 5},
-    {NOTHING, 15},
-    // Down
-    {DOWN, 5},
-    {NOTHING, 15},
-    // A
-    {A, 5},
-    {NOTHING, 15},
-    // A
-    {A, 5},
-    {NOTHING, 15},
-    // A
-    {A, 5},
-    {NOTHING, 20},
-
-    // Wait
-    {NOTHING, 10},
-
-    // Second spell
-
-    // L
-    {L, 5},
-    {NOTHING, 15},
-    // Down
-    {DOWN, 5},
-    {NOTHING, 15},
-    // A
-    {A, 5},
-    {NOTHING, 15},
-    // A
-    {A, 5},
-    {NOTHING, 15},
-    // A
-    {A, 5},
-    {NOTHING, 10},
-
-    // Auto battle
-
-    // Press minus
-    {MINUS, 5},
-    {NOTHING, 10},
-
-    // Hold R for a while
-    {R, 500},
-    {R, 500},
-    {R, 380},
-
-    // If level 50-70, you might need more time in battle
-    // { R,        500 },
-    // { R,        500 },
-    // { R,        500 },
-
-    // Proceed past battle
-
-    // Press A
-    {A, 5},
-    {NOTHING, 30},
-    {A, 5},
-    {NOTHING, 30},
-    {A, 5},
-    {NOTHING, 30},
-    {A, 5},
-    {NOTHING, 30},
-
-    // Wait a while
-    {NOTHING, 200},
-    {NOTHING, 200},
-    {NOTHING, 100},
-
-    // Skip scene
-
-    // Press Plus
-    {PLUS, 5},
-    {NOTHING, 15},
-    // Press X
-    {X, 5},
-    {NOTHING, 15},
-    // Press up
-    {UP, 5},
-    {NOTHING, 15},
-    // Press A
-    {A, 5},
-    {NOTHING, 20},
-
-    // Wait a while
-    {NOTHING, 200},
-    {NOTHING, 200},
-    {NOTHING, 90},
-
-    // Go back to save point
-    // up
-    {UP, 26},
-    {NOTHING, 50},
-    // left
-    {LEFT, 3},
-    {NOTHING, 50},
-
-    // Wait before looping
-    // { NOTHING,   50 },
-};
+USB_JoystickReport_Input_t current_state;
 
 void SetupSpi(void) {
+  memset(&current_state, 0, sizeof(USB_JoystickReport_Input_t));
+  current_state.LX = STICK_CENTER;
+  current_state.LY = STICK_CENTER;
+  current_state.RX = STICK_CENTER;
+  current_state.RY = STICK_CENTER;
+  current_state.HAT = HAT_CENTER;
+
   DDRD |= (1 << 6);           // enable LED as output
   DDRB = DDRB | (1 << DDB6);  // set MISO as output TODO maybe don't need this
 
@@ -267,18 +26,52 @@ void SetupSpi(void) {
 void ledOn(void) { PORTD |= (1 << 6); }
 void ledOff(void) { PORTD &= ~(1 << 6); }
 
+int targetSpiByte = 0;
+char spiMessage[2];
+
+#define KJ_SPI_TYPE 0
+#define KJ_SPI_DATA 1
+
+#define KJ_SPI_TYPE_BUTTON 0
+#define KJ_SPI_TYPE_LX 1
+#define KJ_SPI_TYPE_LY 2
+#define KJ_SPI_TYPE_RX 3
+#define KJ_SPI_TYPE_RY 4
+
 void ReadSpi(void) {
-  // ledOff();
-  if (SPSR & SPIF) {  // If the interupt flag on the status register is set,
-                      // we have a byte ready to read
-    {
+  while (SPSR & (1 << SPIF)) {
+    // If the interupt flag on the status register is set,
+    // we have a byte ready to read
+    spiMessage[targetSpiByte] = SPDR;
+    targetSpiByte ^= 1;
+
+    if (targetSpiByte == 0) {  // at the beginning of a new message
       ledOn();
-      char data = SPDR;
-      if (data > 128) {
-        ledOn();
-      } else {
-        ledOff();
+      switch (spiMessage[0]) {
+        case KJ_SPI_TYPE_BUTTON: {
+          current_state.Button =
+              current_state.Button ^ (1 << spiMessage[KJ_SPI_DATA]);
+          break;
+        }
+        case KJ_SPI_TYPE_LX: {
+          current_state.LX = spiMessage[KJ_SPI_DATA];
+          break;
+        }
+        case KJ_SPI_TYPE_LY: {
+          current_state.LY = spiMessage[KJ_SPI_DATA];
+          break;
+        }
+        case KJ_SPI_TYPE_RX: {
+          current_state.RX = spiMessage[KJ_SPI_DATA];
+          break;
+        }
+        case KJ_SPI_TYPE_RY: {
+          current_state.RY = spiMessage[KJ_SPI_DATA];
+          break;
+        }
       }
+    } else {
+      ledOff();
     }
   }
 }
@@ -473,110 +266,12 @@ void GetNextReport(USB_JoystickReport_Input_t* const ReportData) {
       break;
 
     case PROCESS:
-
-      switch (step[bufindex].button) {
-        case UP:
-          ReportData->LY = STICK_MIN;
-          break;
-
-        case LEFT:
-          ReportData->LX = STICK_MIN;
-          break;
-
-        case DOWN:
-          ReportData->LY = STICK_MAX;
-          break;
-
-        case RIGHT:
-          ReportData->LX = STICK_MAX;
-          break;
-
-        case PLUS:
-          ReportData->Button |= SWITCH_PLUS;
-          break;
-
-        case MINUS:
-          ReportData->Button |= SWITCH_MINUS;
-          break;
-
-        case A:
-          ReportData->Button |= SWITCH_A;
-          break;
-
-        case B:
-          ReportData->Button |= SWITCH_B;
-          break;
-
-        case X:
-          ReportData->Button |= SWITCH_X;
-          break;
-
-        case Y:
-          ReportData->Button |= SWITCH_Y;
-          break;
-
-        case R:
-          ReportData->Button |= SWITCH_R;
-          break;
-
-        case L:
-          ReportData->Button |= SWITCH_L;
-          break;
-
-        case THROW:
-          ReportData->LY = STICK_MIN;
-          ReportData->Button |= SWITCH_R;
-          break;
-
-        case TRIGGERS:
-          ReportData->Button |= SWITCH_L | SWITCH_R;
-          break;
-
-        default:
-          ReportData->LX = STICK_CENTER;
-          ReportData->LY = STICK_CENTER;
-          ReportData->RX = STICK_CENTER;
-          ReportData->RY = STICK_CENTER;
-          ReportData->HAT = HAT_CENTER;
-          break;
-      }
-
-      duration_count++;
-
-      if (duration_count > step[bufindex].duration) {
-        bufindex++;
-        duration_count = 0;
-      }
-
-      if (bufindex > (int)(sizeof(step) / sizeof(step[0])) - 1) {
-        // state = CLEANUP;
-
-        bufindex = 7;
-        duration_count = 0;
-
-        state = BREATHE;
-
-        ReportData->LX = STICK_CENTER;
-        ReportData->LY = STICK_CENTER;
-        ReportData->RX = STICK_CENTER;
-        ReportData->RY = STICK_CENTER;
-        ReportData->HAT = HAT_CENTER;
-      }
-
-      break;
-
-    case CLEANUP:
-      state = DONE;
-      break;
-
-    case DONE:
-#ifdef ALERT_WHEN_DONE
-      portsval = ~portsval;
-      PORTD = portsval;  // flash LED(s) and sound buzzer if attached
-      PORTB = portsval;
-      _delay_ms(250);
-#endif
-      return;
+      ReportData->LY = current_state.LY;
+      ReportData->LX = current_state.LX;
+      ReportData->RX = current_state.RX;
+      ReportData->RY = current_state.RY;
+      ReportData->HAT = current_state.HAT;
+      ReportData->Button = current_state.Button;
   }
 
   // Prepare to echo this report
