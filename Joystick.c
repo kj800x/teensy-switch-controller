@@ -250,14 +250,50 @@ static const command step[] = {
     // { NOTHING,   50 },
 };
 
+void SetupSpi(void) {
+  DDRD |= (1 << 6);           // enable LED as output
+  DDRB = DDRB | (1 << DDB6);  // set MISO as output TODO maybe don't need this
+
+  // SPI Type: Slave
+  // SPI Clock Rate: 2000,000 kHz
+  // SPI Clock Phase: Cycle Start
+  // SPI Clock Polarity: Low
+  // SPI Data Order: MSB First
+  SPCR = (0 << SPIE) | (1 << SPE) | (0 << DORD) | (0 << MSTR) | (0 << CPOL) |
+         (0 << CPHA) | (0 << SPR1) | (0 << SPR0);
+  SPSR = (0 << SPI2X);
+}
+
+void ledOn(void) { PORTD |= (1 << 6); }
+void ledOff(void) { PORTD &= ~(1 << 6); }
+
+void ReadSpi(void) {
+  // ledOff();
+  if (SPSR & SPIF) {  // If the interupt flag on the status register is set,
+                      // we have a byte ready to read
+    {
+      ledOn();
+      char data = SPDR;
+      if (data > 128) {
+        ledOn();
+      } else {
+        ledOff();
+      }
+    }
+  }
+}
+
 // Main entry point.
 int main(void) {
   // We'll start by performing hardware and peripheral setup.
   SetupHardware();
+  // Spi setup
+  SetupSpi();
   // We'll then enable global interrupts for our use.
   GlobalInterruptEnable();
   // Once that's done, we'll enter an infinite loop.
   for (;;) {
+    ReadSpi();
     // We need to run our task to process and deliver data for our IN and OUT
     // endpoints.
     HID_Task();
@@ -293,7 +329,8 @@ PORTD will toggle when printing is done.
 
 // Fired to indicate that the device is enumerating.
 void EVENT_USB_Device_Connect(void) {
-  // We can indicate that we're enumerating here (via status LEDs, sound, etc.).
+  // We can indicate that we're enumerating here (via status LEDs, sound,
+  // etc.).
 }
 
 // Fired to indicate that the device is no longer connected to a host.
@@ -326,8 +363,8 @@ void EVENT_USB_Device_ControlRequest(void) {
 
 // Process and deliver data from IN and OUT endpoints.
 void HID_Task(void) {
-  // If the device isn't connected and properly configured, we can't do anything
-  // here.
+  // If the device isn't connected and properly configured, we can't do
+  // anything here.
   if (USB_DeviceState != DEVICE_STATE_Configured) return;
 
   // We'll start with the OUT endpoint.
@@ -345,7 +382,8 @@ void HID_Task(void) {
         ;
       // At this point, we can react to this data.
 
-      // However, since we're not doing anything with this data, we abandon it.
+      // However, since we're not doing anything with this data, we abandon
+      // it.
     }
     // Regardless of whether we reacted to the data, we acknowledge an OUT
     // packet on this endpoint.
@@ -360,8 +398,8 @@ void HID_Task(void) {
     USB_JoystickReport_Input_t JoystickInputData;
     // We'll then populate this report with what we want to send to the host.
     GetNextReport(&JoystickInputData);
-    // Once populated, we can output this data to the host. We do this by first
-    // writing the data to the control stream.
+    // Once populated, we can output this data to the host. We do this by
+    // first writing the data to the control stream.
     while (Endpoint_Write_Stream_LE(&JoystickInputData,
                                     sizeof(JoystickInputData),
                                     NULL) != ENDPOINT_RWSTREAM_NoError)
@@ -429,8 +467,8 @@ void GetNextReport(USB_JoystickReport_Input_t* const ReportData) {
       state = BREATHE;
       break;
 
-    case BREATHE:  // This seems to be a dummy step to just take a break from a
-                   // response?
+    case BREATHE:  // This seems to be a dummy step to just take a break from
+                   // a response?
       state = PROCESS;
       break;
 
