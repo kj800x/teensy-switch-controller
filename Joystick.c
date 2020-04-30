@@ -46,7 +46,7 @@ void ReadSpi(void) {
     targetSpiByte ^= 1;
 
     if (targetSpiByte == 0) {  // at the beginning of a new message
-      ledOn();
+      ledOff();
       switch (spiMessage[0]) {
         case KJ_SPI_TYPE_BUTTON: {
           current_state.Button =
@@ -71,8 +71,9 @@ void ReadSpi(void) {
         }
       }
     } else {
-      ledOff();
+      ledOn();
     }
+    SPDR = 42; // Answer to life the universe and everything
   }
 }
 
